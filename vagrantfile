@@ -1,0 +1,36 @@
+file_to_disk = './sata1.vdi'
+Vagrant.configure("2") do |config|
+  config.vm.define "backup" do |backup|
+    backup.vm.box = "bento/ubuntu-22.04"
+    backup.vm.hostname = "backup" 
+    backup.vm.network "private_network", ip: "192.168.56.160",  virtualbox__intnet: "net1" 
+    backup.vm.provider "virtualbox" do |vb|
+      vb.memory = "4096"
+      vb.name = "backup"
+      needsController = false
+      unless File.exist?(file_to_disk)
+	vb.customize ['createhd', '--filename', file_to_disk, '--variant', 'Fixed', '--size', 2048]
+        needsController =  true
+      end
+      if needsController == true
+        vb.customize ['storageattach', :id, '--storagectl', 'SATA Controller', '--port', 1, '--device', 0, '--type', 'hdd', '--medium', file_to_disk]
+      end
+    end
+    backup.vm.provision "shell", path: "backup_script1.sh"
+  end
+
+  config.vm.define "client" do |client|
+    client.vm.box = "bento/ubuntu-22.04"
+    client.vm.hostname = "client"
+    client.vm.network "private_network", ip: "192.168.56.150",  virtualbox__intnet: "net1" 
+    client.vm.provider "virtualbox" do |vb|
+      vb.memory = "4096"
+      vb.name = "client"
+    end
+    client.vm.provision "shell", path: "client_script1.sh"
+    client.vm.provision "file", source: "borg-backup.service", destination: "./borg-backup.service"
+    client.vm.provision "file", source: "borg-backup.timer", destination: "./borg-backup.timer"
+    client.vm.provision "file", source: "borg_log.conf", destination: "./borg_log.conf"
+    client.vm.provision "shell", path: "client_script2.sh"
+  end
+end
